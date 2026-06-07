@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Edit, Pin, Trash2, AlertCircle } from "lucide-react";
+import { Edit, Pin, Trash2, AlertCircle, Loader2 } from "lucide-react";
 
 type Note = {
   _id: string;
@@ -12,11 +12,14 @@ type Note = {
 };
 
 export default function NotesPage() {
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
   const [notes, setNotes] = useState<Note[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [activeMenuNoteId, setActiveMenuNoteId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [error, setError] = useState("");
@@ -26,7 +29,7 @@ export default function NotesPage() {
   }, []);
 
   const getNotes = async () => {
-    const response = await fetch("http://localhost:3000/notes");
+    const response = await fetch(`${API_URL}/notes`);
     if (!response.ok) {
       throw new Error("Failed to fetch notes");
     }
@@ -64,83 +67,102 @@ export default function NotesPage() {
       return;
     }
 
-    if (editingNoteId) {
-      const existingNote = notes.find((note) => note._id === editingNoteId);
-      const response = await fetch(`http://localhost:3000/notes/${editingNoteId}`, {
+    setIsSaving(true);
+    try {
+      if (editingNoteId) {
+        setActionLoadingId(editingNoteId);
+        const existingNote = notes.find((note) => note._id === editingNoteId);
+        const response = await fetch(`${API_URL}/notes/${editingNoteId}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            title,
+            content,
+            isPinned: existingNote?.isPinned ?? false,
+          }),
+        });
+
+        if (!response.ok) {
+          setError("Failed to update note.");
+          return;
+        }
+
+        const updatedNote = await response.json();
+        setNotes((prevNotes) => prevNotes.map((note) => (note._id === updatedNote._id ? updatedNote : note)));
+        closeModal();
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/notes`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ title, content }),
+      });
+
+      if (!response.ok) {
+        setError("Failed to create note.");
+        return;
+      }
+
+      const createdNote = await response.json();
+      setNotes((prevNotes) => [createdNote, ...prevNotes]);
+      closeModal();
+    } catch (err) {
+      setError("An unexpected error occurred.");
+    } finally {
+      setIsSaving(false);
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    setActionLoadingId(noteId);
+    try {
+      const response = await fetch(`${API_URL}/notes/${noteId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      setNotes((prevNotes) => prevNotes.filter((note) => note._id !== noteId));
+      setActiveMenuNoteId(null);
+      setDeleteConfirmId(null);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleTogglePin = async (note: Note) => {
+    setActionLoadingId(note._id);
+    try {
+      const response = await fetch(`${API_URL}/notes/${note._id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          title,
-          content,
-          isPinned: existingNote?.isPinned ?? false,
+          title: note.title,
+          content: note.content,
+          isPinned: !note.isPinned,
         }),
       });
 
       if (!response.ok) {
-        setError("Failed to update note.");
         return;
       }
 
       const updatedNote = await response.json();
-      setNotes((prevNotes) => prevNotes.map((note) => (note._id === updatedNote._id ? updatedNote : note)));
-      closeModal();
-      return;
+      setNotes((prevNotes) => prevNotes.map((item) => (item._id === updatedNote._id ? updatedNote : item)));
+      setActiveMenuNoteId(null);
+    } finally {
+      setActionLoadingId(null);
     }
-
-    const response = await fetch("http://localhost:3000/notes", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ title, content }),
-    });
-
-    if (!response.ok) {
-      setError("Failed to create note.");
-      return;
-    }
-
-    const createdNote = await response.json();
-    setNotes((prevNotes) => [createdNote, ...prevNotes]);
-    closeModal();
-  };
-
-  const handleDeleteNote = async (noteId: string) => {
-    const response = await fetch(`http://localhost:3000/notes/${noteId}`, {
-      method: "DELETE",
-    });
-
-    if (!response.ok) {
-      return;
-    }
-
-    setNotes((prevNotes) => prevNotes.filter((note) => note._id !== noteId));
-    setActiveMenuNoteId(null);
-    setDeleteConfirmId(null);
-  };
-
-  const handleTogglePin = async (note: Note) => {
-    const response = await fetch(`http://localhost:3000/notes/${note._id}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        title: note.title,
-        content: note.content,
-        isPinned: !note.isPinned,
-      }),
-    });
-
-    if (!response.ok) {
-      return;
-    }
-
-    const updatedNote = await response.json();
-    setNotes((prevNotes) => prevNotes.map((item) => (item._id === updatedNote._id ? updatedNote : item)));
-    setActiveMenuNoteId(null);
   };
 
   const formatDate = (date: string) => {
@@ -156,18 +178,18 @@ export default function NotesPage() {
 console.log(formatDate(new Date().toISOString()));
 
   return (
-    <div className="px-8 py-10">
+    <div className="px-4 py-6 md:px-8 md:py-10">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-semibold text-slate-900">Notes</h1>
-          <p className="mt-2 text-sm text-slate-600">
+          <h1 className="text-2xl md:text-3xl font-semibold text-slate-900">Notes</h1>
+          <p className="mt-2 text-base md:text-sm text-slate-600">
             Capture ideas, reminders, and quick thoughts in one place.
           </p>
         </div>
 
         <button
           type="button"
-          className="inline-flex items-center justify-center rounded-md bg-[#2592d1] px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1d6fa3]"
+          className="inline-flex w-full sm:w-auto items-center justify-center rounded-md bg-[#2592d1] px-4 sm:px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1d6fa3]"
           onClick={openCreateModal}
         >
           Create Note
@@ -176,8 +198,8 @@ console.log(formatDate(new Date().toISOString()));
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-2xl overflow-hidden rounded-md border border-slate-200 bg-white/95 p-6 shadow-2xl ring-1 ring-slate-200">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
+          <div className="w-full max-w-lg sm:max-w-2xl overflow-hidden rounded-md border border-slate-200 bg-white/95 p-5 sm:p-6 shadow-2xl ring-1 ring-slate-200">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
               <div>
                 <div className="text-2xl font-semibold text-slate-900">
                   {editingNoteId ? "Edit Note" : "New Note"}
@@ -226,17 +248,22 @@ console.log(formatDate(new Date().toISOString()));
               <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
                 <button
                   type="button"
-                  className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  className={`w-full sm:w-auto rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 ${isSaving ? "opacity-60 cursor-not-allowed" : ""}`}
                   onClick={closeModal}
+                  disabled={isSaving}
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
-                  className="rounded-2xl bg-[#2592d1] px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1d6fa3]"
+                  className={`w-full sm:w-auto rounded-2xl bg-[#2592d1] px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1d6fa3] ${isSaving || (editingNoteId ? actionLoadingId === editingNoteId : false) ? "opacity-60 cursor-not-allowed" : ""}`}
                   onClick={handleSaveNote}
+                  disabled={isSaving || (editingNoteId ? actionLoadingId === editingNoteId : false)}
                 >
-                  {editingNoteId ? "Update Note" : "Save Note"}
+                  {(isSaving || (editingNoteId ? actionLoadingId === editingNoteId : false)) && (
+                    <Loader2 className="-ml-1 mr-2 inline-block h-4 w-4 animate-spin" />
+                  )}
+                  {editingNoteId ? (isSaving ? "Updating..." : "Update Note") : isSaving ? "Saving..." : "Save Note"}
                 </button>
               </div>
             </div>
@@ -249,7 +276,7 @@ console.log(formatDate(new Date().toISOString()));
           <div className="w-full max-w-sm overflow-hidden rounded-[24px] border border-slate-200 bg-white p-6 shadow-2xl ring-1 ring-slate-200">
             <div className="flex items-start gap-4 mb-4">
               <div className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-rose-100">
-                <AlertCircle className="h-5 w-5 text-rose-600" />
+                <AlertCircle className="h-5 w-5 text-rose-600 md:h-6 md:w-6" />
               </div>
               <div className="flex-1">
                 <div className="text-lg font-semibold text-slate-900">Delete note?</div>
@@ -262,40 +289,45 @@ console.log(formatDate(new Date().toISOString()));
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
               <button
                 type="button"
-                className="rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                className={`rounded-2xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 ${actionLoadingId === deleteConfirmId ? "opacity-60 cursor-not-allowed" : ""}`}
                 onClick={() => setDeleteConfirmId(null)}
+                disabled={actionLoadingId === deleteConfirmId}
               >
                 Cancel
               </button>
               <button
                 type="button"
-                className="rounded-2xl bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-700"
+                className={`rounded-2xl bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-rose-700 ${actionLoadingId === deleteConfirmId ? "opacity-60 cursor-not-allowed" : ""}`}
                 onClick={() => handleDeleteNote(deleteConfirmId)}
+                disabled={actionLoadingId === deleteConfirmId}
               >
-                Delete
+                {actionLoadingId === deleteConfirmId ? (
+                  <Loader2 className="-ml-1 mr-2 inline-block h-4 w-4 animate-spin" />
+                ) : null}
+                {actionLoadingId === deleteConfirmId ? "Deleting..." : "Delete"}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
         {notes.map((note) => (
           <div
             key={note._id}
-            className="rounded-md border border-slate-200 bg-white p-6 shadow-sm ring-1 ring-slate-200 "
+            className="rounded-md border border-slate-200 bg-white p-4 sm:p-6 shadow-sm ring-1 ring-slate-200 "
           >
             <div className="flex flex-col">
 
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-xl font-semibold text-slate-900">{note.title}</div>
-                <div className="mt-3 text-sm leading-6 text-slate-600">{note.content}</div>
+                <div className="text-lg md:text-xl font-semibold text-slate-900">{note.title}</div>
+                <div className="mt-2 text-sm md:leading-6 text-slate-600">{note.content}</div>
               </div>
 
               <div className="relative flex items-center gap-2">
                 <span
-                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
                     note.isPinned ? "bg-[#2592d1]/10 text-[#1d6fa3]" : "bg-slate-100 text-slate-600"
                   }`}
                 >
@@ -303,7 +335,7 @@ console.log(formatDate(new Date().toISOString()));
                 </span>
                 <button
                   type="button"
-                  className="transition"
+                  className="p-2 rounded-md hover:bg-slate-100 transition"
                   onClick={() => setActiveMenuNoteId(note._id === activeMenuNoteId ? null : note._id)}
                   aria-label="Open note actions"
                 >
@@ -316,16 +348,26 @@ console.log(formatDate(new Date().toISOString()));
                       type="button"
                       className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                       onClick={() => openEditModal(note)}
+                      disabled={actionLoadingId === note._id}
                     >
-                      <Edit className="h-4 w-4" />
+                      {actionLoadingId === note._id ? (
+                        <Loader2 className="h-4 w-4 md:h-5 md:w-5 animate-spin" />
+                      ) : (
+                        <Edit className="h-4 w-4 md:h-5 md:w-5" />
+                      )}
                       Edit
                     </button>
                     <button
                       type="button"
                       className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-50"
                       onClick={() => handleTogglePin(note)}
+                      disabled={actionLoadingId === note._id}
                     >
-                      <Pin className="h-4 w-4" />
+                      {actionLoadingId === note._id ? (
+                        <Loader2 className="h-4 w-4 md:h-5 md:w-5 animate-spin" />
+                      ) : (
+                        <Pin className="h-4 w-4 md:h-5 md:w-5" />
+                      )}
                       {note.isPinned ? "Unpin" : "Pin"}
                     </button>
                     <button
@@ -335,8 +377,9 @@ console.log(formatDate(new Date().toISOString()));
                         setDeleteConfirmId(note._id);
                         setActiveMenuNoteId(null);
                       }}
+                      disabled={actionLoadingId === note._id}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-4 w-4 md:h-5 md:w-5" />
                       Delete
                     </button>
                   </div>

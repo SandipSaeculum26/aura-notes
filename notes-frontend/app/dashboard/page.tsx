@@ -34,12 +34,12 @@ export default function DashboardPage() {
 
   return (
     <div className="px-8 py-10">
-      <h1 className="text-3xl font-semibold">
+      <div className="text-3xl font-semibold">
         Welcome back{email ? `, ${email}` : ""}
-      </h1>
-      <p className="mt-2 text-sm text-slate-600">
+      </div>
+      <div className="mt-2 text-sm text-slate-600">
         Pick up where you left off, or jump into a tool.
-      </p>
+      </div>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map(({ href, title, description, Icon }) => (
