@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { GoogleSignInButton } from "../components/GoogleSignInButton";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -75,14 +76,22 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-md bg-blue-800 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+              className="w-full rounded-md  bg-[#3096d1] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#4675c0] disabled:opacity-60 cursor-pointer"
             >
-              {loading ? "Signing in..." : "Continue"}
+              {loading ? "Signing in..." : "Sign in"}
             </button>
           </form>
+
+          <div className="mt-4 text-center text-sm text-slate-500">or</div>
+
+          <div className="mt-4 flex w-full justify-center">
+            <GoogleSignInButton text="signin_with" onError={setError} />
+          </div>
+
+
           <div className="mt-6 text-center text-sm text-slate-600">
             Don&apos;t have an account?{" "}
-            <button onClick={() => router.push("/signup")} className="font-semibold text-blue-800 hover:underline">
+            <button onClick={() => router.push("/signup")} className="font-semibold text-[#3096d1] hover:underline">
               Sign up
             </button>
           </div>

@@ -1,11 +1,13 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { GoogleSignInButton } from "@/app/components/GoogleSignInButton";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 export default function SignupPage() {
   const router = useRouter();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -20,7 +22,7 @@ export default function SignupPage() {
       const res = await fetch(`${API_URL}/auth/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ name, email, password }),
       });
 
       const data = await res.json();
@@ -50,6 +52,17 @@ export default function SignupPage() {
           </div>
           <form onSubmit={handleSubmit} className="mt-8 space-y-4">
             <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
+              <label className="block text-sm font-medium text-slate-700">Full Name</label>
+              <input
+                type="text"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="mt-2 w-full rounded-md border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-blue-500"
+                placeholder="John Doe"
+              />
+            </div>
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
               <label className="block text-sm font-medium text-slate-700">Email</label>
               <input
                 type="email"
@@ -76,18 +89,31 @@ export default function SignupPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-md bg-blue-800 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+              className="w-full rounded-md bg-[#3096d1] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#4675c0] disabled:opacity-60 cursor-pointer"
             >
-              {loading ? "Creating account..." : "Create account"}
+              {loading ? "Creating account..." : "Sign up"}
             </button>
           </form>
+
+          <div className="mt-4 text-center text-sm text-slate-500">or</div>
+
+          <div className="mt-4 flex w-full justify-center">
+            <GoogleSignInButton text="signup_with" onError={setError} />
+          </div>
+
+
           <div className="mt-6 text-center text-sm text-slate-600">
             Already have an account?{" "}
-            <button onClick={() => router.push("/login")} className="font-semibold text-blue-800 hover:underline">
+            <button onClick={() => router.push("/login")} className="font-semibold text-[#3096d1] hover:underline">
               Login
             </button>
           </div>
+
         </div>
+
+
+
+
       </div>
     </div>
   );
